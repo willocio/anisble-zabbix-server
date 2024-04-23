@@ -1,0 +1,6 @@
+*.txt
+/.vagrant
+.vagrant/
+Vagrantfile
+/home/ronaldo/Documentos/Projetos-DevOps/.vagrant
+
