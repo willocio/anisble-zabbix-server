@@ -2,5 +2,4 @@
 - hosts: localhost
   become: true
   roles:
-    - common
-    - nginx
+    - docker
