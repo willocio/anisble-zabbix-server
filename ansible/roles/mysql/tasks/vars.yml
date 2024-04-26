@@ -1,0 +1,6 @@
+---
+root_password: lanrete
+admin_user: zabbix
+admin_password: eternal
+db_name: zabbix
+password_validation_policy: 1 ## Caso confirme nas configuraões de mysql_secure_installation que deseja ativar a validação de senha segura

@@ -1,0 +1,77 @@
+---
+- name: Incluir variável para usuário, senha e nome do banco de dados
+  include_vars: vars.yml
+
+- name: Atualizar cache do repositório
+  apt: 
+    update_cache: yes
+
+- name: Instalar o mysql-server, python3-pymyslq e python3-pip
+  apt:
+    name: 
+      - mysql-server
+      - python3-pymysql
+      - python3-pip
+
+- name: Garantindo que o serviço está ativo e funcionando
+  service:
+    name: mysql
+    state: started
+    enabled: yes
+
+- name: Ajustando mysql_secure_installation
+  expect:
+    command: mysql_secure_installation
+    responses:
+      'Enter password for user root': "{{root_password}}"
+      'VALIDATE PASSWORD component?': ''
+      'Change the password for root ?': ''
+      'Remove anonymous users?': 'y'
+      'Disallow root login remotely?': 'y'
+      'Remove test database and access to it?': 'y'
+      'Reload privilege tables now?': 'y'
+    timeout: 1
+  environment:
+    MYSQL_PWD: "{{root_password}}"
+  register: mysql_secure
+
+- name: Configurando senha do root
+  mysql_user:
+    name: root
+    password: "{{root_password}}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    host: localhost
+    login_user: root
+    login_password: ''
+    state: present
+
+- name: Criando database
+  mysql_db:
+    name: "{{db_name}}"
+    state: present
+    login_user: root
+    login_password: "{{root_password}}"
+    encoding: utf8mb4
+    collation: utf8mb4_bin
+
+- name: Criando usuário admin para acesso remoto
+  mysql_user: 
+    name: "{{admin_user}}"
+    password: "{{admin_password}}"
+    priv: 'zabbix.*:ALL,GRANT'
+    host: localhost
+    append_privs: true
+    login_user: root
+    login_password: "{{root_password}}"
+    state: present
+
+
+- name: Mudar para 1 a variável log_bin_trust_function_creators
+  lineinfile:
+    dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+    line: "log-bin-trust-function-creators = 1"
+
+- name: Reiniciar o mysql
+  systemd:
+    name: mysql
+    state: restarted
