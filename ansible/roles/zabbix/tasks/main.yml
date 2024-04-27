@@ -1,0 +1,104 @@
+---
+- name: Atualizar repositório
+  apt:
+    update_cache: yes
+
+- name: Instalando MySQL
+  apt:
+    name:
+      - mysql-server
+      - python3-pymysql
+      - python3-pip
+
+- name: Garantindo que o MySQL está ativo e funcionando
+  service:
+    name: mysql
+    state: started
+    enabled: yes
+
+- name: Configurando senha do root
+  mysql_user:
+    name: root
+    password: Aqui_naO
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    host: localhost
+    login_user: root
+    login_password: ''
+    state: present
+
+- name: Download release Zabbix
+  get_url:
+    url: https://repo.zabbix.com/zabbix/6.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_6.0-4+ubuntu20.04_all.deb
+    dest: /tmp/zabbix-release.deb
+  
+- name: Instalando .deb release Zabbix
+  apt:
+    deb: /tmp/zabbix-release.deb
+
+- name: Atualizar repositório
+  apt:
+    update_cache: yes
+
+- name: Instalação do Zabbix
+  apt:
+    name:
+      - zabbix-server-mysql
+      - zabbix-frontend-php
+      - zabbix-nginx-conf
+      - zabbix-sql-scripts
+      - zabbix-agent
+
+- name: Removendo apache2 (evitar conflito com o Nginx)
+  apt:
+    name: apache2
+    state: absent
+
+- name: Criando databases
+  shell: mysql -uroot -pAqui_naO -e "create database zabbix character set utf8mb4 collate utf8mb4_bin"
+  ignore_errors: true
+
+- name: Criando usuário
+  shell: mysql -uroot -pAqui_naO -e "create user zabbix@localhost identified by 'lanrete'"
+  ignore_errors: true
+
+- name: Concedendo privilégios ALL GRANT
+  shell: mysql -uroot -pAqui_naO -e "grant all privileges on zabbix.* to zabbix@localhost"
+  ignore_errors: true
+
+- name: Setando variável
+  shell: mysql -uroot -pAqui_naO -e "set global log_bin_trust_function_creators = 1"
+  ignore_errors: true
+  
+- name: Importando databases
+  shell: zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql --default-character-set=utf8mb4 -uzabbix -planrete zabbix
+  ignore_errors: true
+
+- name: Removendo variável
+  shell: mysql -uroot -pAqui_naO -e "set global log_bin_trust_function_creators = 0"
+  ignore_errors: true
+
+- name: Copiando zabbix_server.conf
+  template:
+    src: zabbix_server.conf
+    dest: /etc/zabbix/zabbix_server.conf
+
+- name: Copiando nginx.conf
+  template:
+    src: nginx.conf
+    dest: /etc/zabbix/nginx.conf
+
+- name: Excluindo default em /etc/nginx/sites-enabled/default (Evitar conflito com o Front do Zabbix)
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Reiniciando os serviços
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - zabbix-server
+    - zabbix-agent
+    - nginx
+    - php7.4-fpm
